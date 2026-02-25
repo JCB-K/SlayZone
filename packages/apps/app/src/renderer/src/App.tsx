@@ -7,6 +7,7 @@ import type { Tag } from '@slayzone/tags/shared'
 // Domains
 import {
   KanbanBoard,
+  AgentListView,
   FilterBar,
   useTasksData,
   useFilterState,
@@ -57,6 +58,16 @@ import { useUsage } from '@/components/usage/useUsage'
 import { useQuery } from 'convex/react'
 import { api } from 'convex/_generated/api'
 import { useLeaderboardAuth } from '@/lib/convexAuth'
+
+function LeaderboardRankSync({ onRank }: { onRank: (rank: number | null) => void }): null {
+  const auth = useLeaderboardAuth()
+  const rank = useQuery(
+    api.leaderboard.getMyBestRank,
+    import.meta.env.DEV && auth.isAuthenticated ? {} : 'skip'
+  ) ?? null
+  useEffect(() => { onRank(rank) }, [rank, onRank])
+  return null
+}
 
 type HomePanel = 'kanban' | 'git' | 'editor' | 'processes'
 const HOME_PANEL_ORDER: HomePanel[] = ['kanban', 'git', 'editor', 'processes']
@@ -160,10 +171,7 @@ function App(): React.JSX.Element {
 
   // Leaderboard rank for tab badge
   const leaderboardAuth = useLeaderboardAuth()
-  const leaderboardBestRank = useQuery(
-    api.leaderboard.getMyBestRank,
-    import.meta.env.DEV && leaderboardAuth.configured && leaderboardAuth.isAuthenticated ? {} : 'skip'
-  ) ?? null
+  const [leaderboardBestRank, setLeaderboardBestRank] = useState<number | null>(null)
 
   // Usage & notification state
   const { data: usageData, refresh: refreshUsage } = useUsage()
@@ -740,6 +748,14 @@ function App(): React.JSX.Element {
 
   }
 
+  const handleInlineCreateTask = async (title: string): Promise<void> => {
+    const projectId = selectedProjectId ?? projects[0]?.id
+    if (!projectId) return
+    const task = await window.api.db.createTask({ projectId, title })
+    setTasks((prev) => [task, ...prev])
+    openTask(task.id)
+  }
+
   const handleCreateTaskFromColumn = (column: Column): void => {
     const defaults: typeof createTaskDefaults = {}
     if (filter.groupBy === 'status') {
@@ -884,6 +900,7 @@ function App(): React.JSX.Element {
 
   return (
     <SidebarProvider defaultOpen={true}>
+      {leaderboardAuth.configured && <LeaderboardRankSync onRank={setLeaderboardBestRank} />}
       <div id="app-shell" className="h-full w-full flex">
         <AppSidebar
           projects={projects}
@@ -1066,7 +1083,7 @@ function App(): React.JSX.Element {
                                       />
                                     )}
                                     <div className={cn('shrink-0 min-h-0 overflow-hidden rounded-lg border border-border bg-background', id === 'kanban' && Object.values(homePanelVisibility).filter(Boolean).length <= 1 ? 'border-transparent' : id === 'kanban' ? 'p-3' : '')} style={{ width: w }}>
-                                      {id === 'kanban' && (
+                                      {id === 'kanban' && (filter.viewMode ?? 'board') === 'board' && (
                                         <KanbanBoard
                                           tasks={displayTasks}
                                           groupBy={filter.groupBy}
@@ -1087,6 +1104,23 @@ function App(): React.JSX.Element {
                                           onArchiveTask={archiveTask}
                                           onDeleteTask={deleteTask}
                                           onArchiveAllTasks={archiveTasks}
+                                        />
+                                      )}
+                                      {id === 'kanban' && (filter.viewMode ?? 'board') === 'list' && (
+                                        <AgentListView
+                                          tasks={displayTasks}
+                                          sortBy={filter.sortBy}
+                                          onTaskClick={handleTaskClick}
+                                          onCreateTask={handleInlineCreateTask}
+                                          projectsMap={projectsMap}
+                                          showProjectDot={selectedProjectId === null}
+                                          taskTags={taskTags}
+                                          tags={tags}
+                                          blockedTaskIds={blockedTaskIds}
+                                          allProjects={projects}
+                                          onUpdateTask={contextMenuUpdate}
+                                          onArchiveTask={archiveTask}
+                                          onDeleteTask={deleteTask}
                                         />
                                       )}
                                       {id === 'git' && <UnifiedGitPanel projectPath={projectPath} visible={true} />}

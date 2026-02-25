@@ -72,6 +72,22 @@ function hasResolvedGithubIdentity(viewer: ViewerProfile | null): boolean {
 }
 
 export function LeaderboardPage(): React.JSX.Element {
+  const auth = useLeaderboardAuth()
+  if (!auth.configured) {
+    return <LeaderboardUnconfigured />
+  }
+  return <LeaderboardPageInner />
+}
+
+function LeaderboardUnconfigured(): React.JSX.Element {
+  return (
+    <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+      Leaderboard requires Convex. Set <code className="mx-1 px-1.5 py-0.5 rounded bg-muted font-mono text-xs">VITE_CONVEX_URL</code> in <code className="mx-1 px-1.5 py-0.5 rounded bg-muted font-mono text-xs">.env.local</code> to enable.
+    </div>
+  )
+}
+
+function LeaderboardPageInner(): React.JSX.Element {
   const [period, setPeriod] = useState<Period>('all-time')
   const [authBusy, setAuthBusy] = useState(false)
   const [syncing, setSyncing] = useState(false)
